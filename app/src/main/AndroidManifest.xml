@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="true"
@@ -22,7 +23,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Pure Rapido Instant Auto-Click Accessibility Service -->
+        <!-- Pure Rapido Instant Auto-Click & Swipe Accessibility Service -->
         <service
             android:name=".RapidoAutoClickService"
             android:exported="false"
