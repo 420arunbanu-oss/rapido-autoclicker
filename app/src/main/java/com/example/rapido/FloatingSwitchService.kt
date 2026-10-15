@@ -58,7 +58,6 @@ class FloatingSwitchService : Service() {
             textSize = 14f
             setPadding(30, 20, 30, 20)
 
-            // Click toggles ON/OFF directly while on top of video
             setOnClickListener {
                 isEnabled = !isEnabled
                 prefs.edit().putBoolean("is_auto_accept_on", isEnabled).apply()
@@ -66,7 +65,6 @@ class FloatingSwitchService : Service() {
                 setBackgroundColor(if (isEnabled) Color.parseColor("#10B981") else Color.parseColor("#EF4444"))
             }
 
-            // Drag support
             setOnTouchListener(object : View.OnTouchListener {
                 private var initialX = 0
                 private var initialY = 0
