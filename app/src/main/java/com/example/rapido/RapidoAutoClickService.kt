@@ -1,8 +1,11 @@
 package com.example.rapido
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Path
+import android.graphics.Rect
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -35,102 +38,131 @@ class RapidoAutoClickService : AccessibilityService() {
         val rootNode = rootInActiveWindow ?: return
 
         val now = System.currentTimeMillis()
-        if (now - lastClickTime < 2500) return
+        if (now - lastClickTime < 700) return
 
-        val foundRupee = containsRupeeOrFare(rootNode)
-        val acceptNode = findAcceptButton(rootNode)
-
-        if (acceptNode != null) {
-            val minFare = prefs.getInt("min_fare", 0)
-            if (minFare > 0 && foundRupee) {
-                val extractedFare = extractFareAmount(rootNode)
-                if (extractedFare in 1 until minFare) {
-                    return
-                }
-            }
-
-            val clicked = clickNode(acceptNode)
-            if (clicked) {
-                lastClickTime = now
-                vibratePhone()
-            }
+        val accepted = scanAndTriggerAccept(rootNode)
+        if (accepted) {
+            lastClickTime = now
+            vibratePhone()
         }
     }
 
-    private fun findAcceptButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val searchTerms = arrayOf(
-            "Accept", "ACCEPT", "ஏற்றுக்கொள்", "स्वीकार करें", "ಸ್ವೀಕರಿಸಿ", "అంగீకరించు"
+    private fun scanAndTriggerAccept(root: AccessibilityNodeInfo): Boolean {
+        // Direct Accept Text Search
+        val textCandidates = listOf(
+            "Accept", "ACCEPT", "accept",
+            "ஏற்றுக்கொள்", "स्वीकार करें",
+            "Tap to accept", "TAP TO ACCEPT",
+            "Accept Order", "ACCEPT ORDER"
         )
 
-        for (term in searchTerms) {
-            val nodes = root.findAccessibilityNodeInfosByText(term)
+        for (candidate in textCandidates) {
+            val nodes = root.findAccessibilityNodeInfosByText(candidate)
             for (node in nodes) {
-                if (node.isVisibleToUser) {
-                    var target: AccessibilityNodeInfo? = node
-                    while (target != null && !target.isClickable) {
-                        target = target.parent
-                    }
-                    if (target != null && target.isClickable) {
-                        return target
-                    }
-                    return node
+                if (clickByBoundsXY(node)) {
+                    return true
                 }
             }
         }
 
-        val idTerms = arrayOf("accept", "btn_accept", "acceptOffer", "accept_order")
-        for (id in idTerms) {
+        // Common Rapido Captain View IDs
+        val idCandidates = listOf(
+            "com.rapido.captain:id/btn_accept",
+            "com.rapido.captain:id/accept_order_btn",
+            "com.rapido.captain:id/btnAccept",
+            "com.rapido.captain:id/accept_button",
+            "com.rapido.captain:id/action_button",
+            "com.rapido.captain:id/primary_action",
+            "com.rapido.rider:id/btn_accept",
+            "btn_accept", "accept", "accept_order"
+        )
+
+        for (id in idCandidates) {
             val nodes = root.findAccessibilityNodeInfosByViewId(id)
             for (node in nodes) {
-                if (node.isVisibleToUser) {
-                    return node
+                if (clickByBoundsXY(node)) {
+                    return true
                 }
             }
         }
 
-        return null
-    }
-
-    private fun clickNode(node: AccessibilityNodeInfo): Boolean {
-        var clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        if (!clicked && node.parent != null) {
-            clicked = node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        }
-        return clicked
-    }
-
-    private fun containsRupeeOrFare(root: AccessibilityNodeInfo): Boolean {
+        // Rupee Symbol ₹ detection - find Accept in active offer card
         val rupeeNodes = root.findAccessibilityNodeInfosByText("₹")
-        if (rupeeNodes.isNotEmpty()) return true
-        val rsNodes = root.findAccessibilityNodeInfosByText("Rs")
-        return rsNodes.isNotEmpty()
-    }
-
-    private fun extractFareAmount(root: AccessibilityNodeInfo): Int {
-        val rupeeNodes = root.findAccessibilityNodeInfosByText("₹")
-        for (node in rupeeNodes) {
-            val text = node.text?.toString() ?: ""
-            val digits = text.replace(Regex("[^0-9]"), "")
-            if (digits.isNotEmpty()) {
-                val amount = digits.toIntOrNull()
-                if (amount != null && amount in 15..2000) {
-                    return amount
+        if (rupeeNodes.isNotEmpty()) {
+            for (rNode in rupeeNodes) {
+                // If the rupee node itself or its parent is the accept button
+                var parent = rNode.parent
+                var depth = 0
+                while (parent != null && depth < 4) {
+                    val rect = Rect()
+                    parent.getBoundsInScreen(rect)
+                    // If this parent looks like a button with bounds
+                    if (parent.isClickable && rect.width() > 100) {
+                        return clickByBoundsXY(parent)
+                    }
+                    parent = parent.parent
+                    depth++
                 }
             }
         }
-        return 0
+
+        return false
+    }
+
+    /**
+     * Exact (X, Y) Bounds Millisecond Click:
+     * Reads node.getBoundsInScreen(rect) -> calculates exact center (x, y) pixels.
+     * Dispatches hardware touch directly to screen coordinates in 1 millisecond.
+     * Also triggers accessibility ACTION_CLICK simultaneously.
+     */
+    private fun clickByBoundsXY(node: AccessibilityNodeInfo): Boolean {
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+
+        var gestureDispatched = false
+
+        // 1. Direct Hardware Screen (X, Y) Bounds Tap in 1 Millisecond
+        if (rect.width() > 0 && rect.height() > 0) {
+            val clickX = rect.centerX().toFloat()
+            val clickY = rect.centerY().toFloat()
+            gestureDispatched = clickXY(clickX, clickY)
+        }
+
+        // 2. Parallel Node Accessibility Click
+        var actionClicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        if (!actionClicked && node.parent != null) {
+            actionClicked = node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        }
+        if (!actionClicked && node.parent?.parent != null) {
+            actionClicked = node.parent.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        }
+
+        return gestureDispatched || actionClicked
+    }
+
+    private fun clickXY(x: Float, y: Float): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val path = Path().apply {
+                moveTo(x, y)
+            }
+            // 1 millisecond lightning hardware tap at exact (X, Y) coordinates
+            val stroke = GestureDescription.StrokeDescription(path, 0, 1)
+            val gesture = GestureDescription.Builder().addStroke(stroke).build()
+            return dispatchGesture(gesture, null, null)
+        }
+        return false
     }
 
     private fun vibratePhone() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                vibratorManager?.defaultVibrator?.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibratorManager?.defaultVibrator?.vibrate(VibrationEffect.createOneShot(180, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
                 val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(200)
+                vibrator?.vibrate(180)
             }
         } catch (_: Exception) {}
     }
