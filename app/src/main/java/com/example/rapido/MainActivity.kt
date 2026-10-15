@@ -1,5 +1,6 @@
 package com.example.rapido
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -9,13 +10,13 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
+import android.widget.CompoundButton
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
 
     private lateinit var prefs: SharedPreferences
 
@@ -29,7 +30,6 @@ class MainActivity : AppCompatActivity() {
             setPadding(40, 60, 40, 40)
         }
 
-        // Title
         val title = TextView(this).apply {
             text = "⚡ Rapido Fast Auto-Clicker"
             textSize = 22f
@@ -46,14 +46,13 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(subtitle)
 
-        // Master Auto-Accept Switch Card
         var isAutoOn = prefs.getBoolean("is_auto_accept_on", true)
         val masterSwitch = Switch(this).apply {
             text = "ஆட்டோ-அக்செப்ட் ஸ்விட்ச் (Auto-Accept)"
             textSize = 16f
             setTextColor(Color.WHITE)
             isChecked = isAutoOn
-            setOnCheckedChangeWidgetListener { _, checked ->
+            setOnCheckedChangeListener { _: CompoundButton, checked: Boolean ->
                 isAutoOn = checked
                 prefs.edit().putBoolean("is_auto_accept_on", checked).apply()
             }
@@ -62,7 +61,6 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(masterSwitch)
 
-        // Accessibility Permission Button
         val accessibilityBtn = Button(this).apply {
             text = "1. Accessibility அனுமதி ஆன் செய்க (Turn ON Accessibility)"
             setBackgroundColor(Color.parseColor("#10B981"))
@@ -77,7 +75,6 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(accessibilityBtn)
 
-        // Floating Widget Overlay Button
         val overlayBtn = Button(this).apply {
             text = "2. மிதக்கும் ஸ்விட்ச் ஆன் செய்க (Floating Switch over Video)"
             setBackgroundColor(Color.parseColor("#3B82F6"))
@@ -97,7 +94,6 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(overlayBtn)
 
-        // Optional Min Fare Filter
         val fareLabel = TextView(this).apply {
             text = "குறைந்தபட்ச கட்டணம் (Min Fare ₹) - 0 எனில் அனைத்து ரைடுகளையும் ஏற்கும்:"
             setTextColor(Color.parseColor("#CBD5E1"))
