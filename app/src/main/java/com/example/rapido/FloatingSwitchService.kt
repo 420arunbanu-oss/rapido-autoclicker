@@ -46,7 +46,7 @@ class FloatingSwitchService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = 30
-            y = 200
+            y = 250
         }
 
         var isEnabled = prefs.getBoolean("is_auto_accept_on", true)
@@ -55,8 +55,8 @@ class FloatingSwitchService : Service() {
             text = if (isEnabled) "⚡ RAPIDO: ON" else "⏸ RAPIDO: OFF"
             setBackgroundColor(if (isEnabled) Color.parseColor("#10B981") else Color.parseColor("#EF4444"))
             setTextColor(Color.WHITE)
-            textSize = 14f
-            setPadding(30, 20, 30, 20)
+            textSize = 15f
+            setPadding(36, 24, 36, 24)
 
             setOnClickListener {
                 isEnabled = !isEnabled
